@@ -11,25 +11,23 @@
 using namespace std;
 using namespace boost::icl;
 
-void humans_at_site(
+std::tuple<std::vector<int>,std::vector<int>,std::vector<double>>
+humans_at_site_orig(
     double start_time,
     double duration,
     int duration_cnt,
     const std::vector<int>& human,
     const std::vector<int>& site,
-    const std::vector<double>& when,
-    std::vector<int>& location,
-    std::vector<int>& period,
-    std::vector<double>& integrated
+    const std::vector<double>& when
     )
 {
     auto sites = ordered_unique(site);
 
     auto site_cnt = sites.size();
     auto entry_cnt = duration_cnt * site_cnt;
-    location.resize(entry_cnt);
-    period.resize(entry_cnt);
-    integrated.resize(entry_cnt);
+    std::vector<int> location(entry_cnt);
+    std::vector<int> period(entry_cnt);
+    std::vector<double> integrated(entry_cnt);
 
     size_t entry_idx = 0;
 
@@ -95,4 +93,117 @@ void humans_at_site(
             entry_idx++;
         }
     }
+    return(make_tuple(location, period, integrated));
+}
+
+
+// A table of site, interval, human-hours during interval.
+std::tuple<std::vector<int>,std::vector<int>,std::vector<double>>
+humans_at_site(
+    double start_time,
+    double duration,
+    int duration_cnt,
+    const std::vector<int>& sites,
+    const std::map<int,interval_map<double,int>>& human
+    )
+{
+    auto site_cnt = sites.size();
+    auto entry_cnt = duration_cnt * site_cnt;
+    std::vector<int> location(entry_cnt);
+    std::vector<int> period(entry_cnt);
+    std::vector<double> integrated(entry_cnt);
+
+    size_t entry_idx = 0;
+
+    for (auto site_idx: sites) {
+        split_interval_map<double,int> present;
+
+        for (const auto& human_locs: human) {
+            int h = human_locs.first;
+            const auto& locs = human_locs.second;
+            for (const auto& loc : locs) {
+                if (loc.second == site_idx) {
+                    present.add(make_pair(loc.first, 1));
+                }
+            }
+        }
+
+        // Now tally up the times.
+        for (int duration_idx = 0; duration_idx < duration_cnt; ++duration_idx) {
+            auto duration_element = interval<double>::right_open(
+                start_time + duration_idx * duration / duration_cnt,
+                start_time + (duration_idx + 1) * duration / duration_cnt
+                );
+            auto during = present & duration_element;
+            double total{0};
+            for (const auto& v: during) {
+                total += v.second * (upper(v.first) - lower(v.first));
+            }
+            location[entry_idx] = site_idx;
+            period[entry_idx] = duration_idx;
+            integrated[entry_idx] = total;
+            entry_idx++;
+        }
+    }
+    return(make_tuple(location, period, integrated));
+}
+
+
+// human: Map from human ID to interval map of site ID.
+// infection: Map from human ID to interval map of PR level.
+// Calculate the sum of the Parasite Rate at any site over the course
+// of each duration of time.
+std::tuple<std::vector<int>,std::vector<int>,std::vector<double>>
+kappa_at_site(
+    double start_time,
+    double duration,
+    int duration_cnt,
+    const std::vector<int>& sites,
+    const std::map<int,interval_map<double,int>>& human,
+    const std::map<int,interval_map<double,double>>& infection
+    )
+{
+    auto site_cnt = sites.size();
+    auto entry_cnt = duration_cnt * site_cnt;
+    std::vector<int> location(entry_cnt);
+    std::vector<int> period(entry_cnt);
+    std::vector<double> integrated(entry_cnt);
+
+    size_t entry_idx = 0;
+
+    for (auto site_idx: sites) {
+        // The sum of the PR for all people at this site during this interval.
+        split_interval_map<double,double> present;
+
+        for (const auto& human_locs: human) {
+            int h = human_locs.first;
+            const auto& locs = human_locs.second;
+            for (const auto& loc : locs) {
+                if (loc.second == site_idx) {
+                    auto parasite_rates = infection.at(h) & loc.first;
+                    for (const auto& pr : parasite_rates) {
+                        present.add(make_pair(pr.first, pr.second));
+                    }
+                }
+            }
+        }
+
+        // Now tally up the times.
+        for (int duration_idx = 0; duration_idx < duration_cnt; ++duration_idx) {
+            auto duration_element = interval<double>::right_open(
+                start_time + duration_idx * duration / duration_cnt,
+                start_time + (duration_idx + 1) * duration / duration_cnt
+                );
+            auto during = present & duration_element;
+            double total{0};
+            for (const auto& v: during) {
+                total += v.second * (upper(v.first) - lower(v.first));
+            }
+            location[entry_idx] = site_idx;
+            period[entry_idx] = duration_idx;
+            integrated[entry_idx] = total;
+            entry_idx++;
+        }
+    }
+    return(make_tuple(location, period, integrated));
 }
