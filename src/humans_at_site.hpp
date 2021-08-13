@@ -1,5 +1,7 @@
 #include <vector>
 
+#include "bloodmeal.hpp"
+
 std::tuple<std::vector<int>,std::vector<int>,std::vector<double>> humans_at_site_orig(
     double start_time,
     double duration,
@@ -15,5 +17,5 @@ humans_at_site(
     double duration,
     int duration_cnt,
     const std::vector<int>& sites,
-    const std::map<int,boost::icl::interval_map<double,int>>& human
+    const std::map<int,MoveMap>& human
     );

@@ -7,6 +7,7 @@
 #include <map>
 
 #include "ordered_unique.hpp"
+#include "humans_at_site.hpp"
 
 using namespace std;
 using namespace boost::icl;
@@ -104,7 +105,7 @@ humans_at_site(
     double duration,
     int duration_cnt,
     const std::vector<int>& sites,
-    const std::map<int,interval_map<double,int>>& human
+    const std::map<Human,MoveMap>& human
     )
 {
     auto site_cnt = sites.size();

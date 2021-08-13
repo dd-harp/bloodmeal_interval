@@ -7,24 +7,23 @@
 #include <boost/random/uniform_real_distribution.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
 
-std::map<int,boost::icl::interval_map<double,double>>
-human_infection(
-    const std::vector<int>& human,
-    const std::vector<double>& level,
-    const std::vector<double>& when
-    );
+#include "bloodmeal.hpp"
 
-std::map<int,boost::icl::interval_map<double,int>>
-human_location(
-    const std::vector<int>& human,
-    const std::vector<int>& site,
-    const std::vector<double>& when
-    );
+// The partial_enricher says the map must represent 0 instead of dropping it.
+
+/* Translates from events to durations with illness level.
+ */
+std::map<Human,IllMap>
+human_infection(const std::vector<IllType>& human, double end_time);
 
 
 
+/* Translates from events to duration at site ID.
+ */
+std::map<Human,MoveMap>
+human_location(const std::vector<LocType>& human, double end_time);
 
-typedef std::tuple<int,double,double> IllType;
+
 bool illcmp(const IllType& a, const IllType& b);
 
 
@@ -39,18 +38,19 @@ make_illness(int human_cnt, const INTERVAL& duration, RNG& rng)
     }
     std::vector<IllType> event;
     for (int sidx = 0; sidx < human_cnt; ++sidx) {
-        if (sidx == 0) {
+        if (human_sick[sidx] == 0) {
             // do nothing
             event.push_back(std::make_tuple(sidx, 0.0, lower(duration)));
-        } else if (sidx == 1) {
+        } else if (human_sick[sidx] == 1) {
             // get sick
             event.push_back(std::make_tuple(sidx, 0.0, lower(duration)));
+            event.push_back(std::make_tuple(sidx, 0.6, dist(rng)));
             event.push_back(std::make_tuple(sidx, 1.0, dist(rng)));
-        } else if (sidx == 2) {
+        } else if (human_sick[sidx] == 2) {
             // recover
             event.push_back(std::make_tuple(sidx, 1.0, lower(duration)));
             event.push_back(std::make_tuple(sidx, 0.0, dist(rng)));
-        } else if (sidx == 3) {
+        } else if (human_sick[sidx] == 3) {
             // Just ill
             event.push_back(std::make_tuple(sidx, 1.0, lower(duration)));
         }
@@ -60,7 +60,6 @@ make_illness(int human_cnt, const INTERVAL& duration, RNG& rng)
 }
 
 
-typedef std::tuple<int,int,double> LocType;
 bool loccmp(const LocType& a, const LocType& b);
 
 
@@ -78,16 +77,19 @@ make_moves(int human_cnt, int site_cnt,
             mover[hinit_idx] = 1;
         }
     }
+    // Any place can be home.
     boost::random::uniform_int_distribution<int> home(0, site_cnt - 1);
+    // Don't travel to lower-numbered sites.
     boost::random::uniform_int_distribution<int> dest(site_cnt / 4, site_cnt - 1);
+    // Make between 0 and 5 trips during the interval.
     boost::random::uniform_int_distribution<int> trips(0, 5);
 
     std::vector<LocType> event;
     for (int sidx = 0; sidx < human_cnt; ++sidx) {
-        if (sidx == 0) {
+        if (mover[sidx] == 0) {
             // do nothing
             event.push_back(std::make_tuple(sidx, home(rng), lower(duration)));
-        } else if (sidx == 1) {
+        } else if (mover[sidx] == 1) {
             // travel
             event.push_back(std::make_tuple(sidx, home(rng), lower(duration)));
             int trip_cnt = trips(rng);
@@ -98,4 +100,70 @@ make_moves(int human_cnt, int site_cnt,
     }
     sort(event.begin(), event.end(), loccmp);
     return(event);
+}
+
+
+template<typename MAP>
+bool intervals_are_complete(const MAP& imap, double start_time) {
+    bool meets = true;
+    std::cout << "intervals_are_complete" << std::endl;
+    for (const auto& kv: imap) {
+        Human h = kv.first;
+        const auto& interval = kv.second;
+        double last = start_time;
+        for (const auto& ikv: interval) {
+            double low = lower(ikv.first);
+            double high = upper(ikv.first);
+            std::cout << "h " << h << " [" << low << ", " << high
+                << ")" << std::endl;
+            if (low - last > 1e-9) {
+                meets = false;
+            }
+            last = high;
+        }
+        if (start_time + 10.0 - last > 1e-9) {
+            meets = false;
+        }
+    }
+    return meets;
+}
+
+
+template<typename RNG>
+std::tuple<std::vector<IllType>,std::vector<LocType>>
+make_events(RNG& rng, Site human_cnt, Site site_cnt, double start_time) {
+    auto duration = boost::icl::interval<Time>::right_open(
+        start_time, start_time + 10.0);
+    auto illness = make_illness(human_cnt, duration, rng);
+    auto moves = make_moves(human_cnt, site_cnt, duration, rng);
+    return(std::make_tuple(illness, moves));
+}
+
+
+// T is a vector of tuples of events which have three parts.
+template<typename T>
+void show_events(const T& e, const std::string& name) {
+    std::cout << "show_events " << name << std::endl;
+    for (const auto& row: e) {
+        std::cout << std::get<0>(row) << ", " << std::get<1>(row) <<
+            ", " << std::get<2>(row) << std::endl;
+    }
+}
+
+
+// T is a map from human to an interval map. That map has keys and values.
+template<typename T>
+void show_intervals(const T& e, const std::string& name) {
+    std::cout << "show_intervals " << name << std::endl;
+    for (const auto& hi: e) {
+        Human h = hi.first;
+        const auto& inter = hi.second;
+        for (const auto& iv: inter) {
+            double low = boost::icl::lower(iv.first);
+            double high = boost::icl::upper(iv.first);
+            const auto& val = iv.second;
+            std::cout << "h " << h << " [" << low << ", " << high <<
+                ") " << val << std::endl;
+        }
+    }
 }
