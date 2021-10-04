@@ -3,6 +3,9 @@
 #include <vector>
 #include <set>
 
+/*! Given a vector of elements, return the unique elements, in lexical order.
+ *
+ */
 template<typename T>
 std::vector<T> ordered_unique(const std::vector<T>& arr) {
     std::set<T> unique_set(arr.begin(), arr.end());

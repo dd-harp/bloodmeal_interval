@@ -10,8 +10,10 @@
 #include <string>
 #include <cstdlib>
 
-//     cout << "illness: " << type_name<decltype(illness)>() << endl;
 
+/*! This function will print the type of a C++ object.
+ *  For example: cout << "illness: " << type_name<decltype(illness)>() << endl;
+ */
 template <class T>
 std::string
 type_name()

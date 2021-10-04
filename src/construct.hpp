@@ -24,9 +24,11 @@ std::map<Human,MoveMap>
 human_location(const std::vector<LocType>& human, double end_time);
 
 
+// Sort illness records by time
 bool illcmp(const IllType& a, const IllType& b);
 
 
+// Constructs a random set of illness input data.
 template<typename INTERVAL,typename RNG>
 std::vector<IllType>
 make_illness(int human_cnt, const INTERVAL& duration, RNG& rng)
@@ -60,9 +62,11 @@ make_illness(int human_cnt, const INTERVAL& duration, RNG& rng)
 }
 
 
+// Sort location records by time
 bool loccmp(const LocType& a, const LocType& b);
 
 
+// Constructs a random set of movement data.
 template<typename INTERVAL,typename RNG>
 std::vector<LocType>
 make_moves(int human_cnt, int site_cnt,
@@ -103,6 +107,7 @@ make_moves(int human_cnt, int site_cnt,
 }
 
 
+// Checks the input to see that intervals cover the time period.
 template<typename MAP>
 bool intervals_are_complete(const MAP& imap, double start_time) {
     bool meets = true;
@@ -140,6 +145,7 @@ make_events(RNG& rng, Site human_cnt, Site site_cnt, double start_time) {
 }
 
 
+// Print events
 // T is a vector of tuples of events which have three parts.
 template<typename T>
 void show_events(const T& e, const std::string& name) {
@@ -151,6 +157,7 @@ void show_events(const T& e, const std::string& name) {
 }
 
 
+// Print intervals
 // T is a map from human to an interval map. That map has keys and values.
 template<typename T>
 void show_intervals(const T& e, const std::string& name) {

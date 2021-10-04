@@ -23,6 +23,75 @@ using namespace boost::icl;
 using namespace boost::random;
 
 
+// Given input data on illness, from the Human module, and input data on movement, from the
+// location module, combine them into a single interval_map that records both location
+// and illness level, splitting the intervals. So you get, for each human, a single record
+// of where they were and how infectious they were.
+HumanState
+combine_human_intervals(
+    const std::map<Human,IllMap>& ill,
+    const std::map<Human,MoveMap>& move
+) {
+    HumanState li_map;
+    for (const auto& move_kv: move) {
+        Human h = move_kv.first;
+        boost::icl::interval_map<Time,LocIll,boost::icl::partial_enricher> single;
+        const MoveMap& mm = move_kv.second;
+        for (const auto& mm_kv: mm) {
+            const auto& duration = mm_kv.first;
+            Site s = mm_kv.second;
+            single += make_pair(duration, LocIll(s, 0));
+        }
+        if (ill.find(h) != ill.end()) {
+            const IllMap& im = ill.at(h);
+            for (const auto& im_kv: im) {
+                const auto& duration = im_kv.first;
+                Kappa k = im_kv.second;
+                single += make_pair(duration, LocIll(0, k));
+            }
+        }
+        li_map[h] = single;
+    }
+    return(li_map);
+}
+
+
+/*!
+ *  Returns a map from a (site, time-step) pair to a set of integrated biting weights.
+ *  The integrated biting weight is a tuple of (human, kappa, weight, duration).
+ */
+BitingWeightIMap
+human_availability(
+    const std::vector<Site>& sites,
+    const std::vector<Human>& humans,
+    const TimeStep& time_step,
+    const HumanState& human
+) {
+    BitingWeightIMap bw_map;
+    for (const auto& move_kv: human) {
+        Human h = move_kv.first;
+        Weight w = 1.0;
+        const auto& trajectory = move_kv.second;
+        //XXX
+        int step_idx = 0;
+        for (const auto& duration: time_step) {
+            auto weights = BitingWeightSet();
+            auto during = trajectory & duration;
+            for (const auto& during_kv: during) {
+                const auto& when = during_kv.first;
+                const LocIll& loc_ill = during_kv.second;
+                weights += {
+                    std::make_tuple(h, loc_ill.ill, w, upper(when) - lower(when))
+                    };
+                }
+            bw_map[make_tuple(loc_ill.loc,step_idx)] = weights;
+            ++step_idx;
+        }
+    }
+    return bw_map;
+}
+
+
 void test_humans_at_site_simple() {
 
     std::vector<LocType> human{
